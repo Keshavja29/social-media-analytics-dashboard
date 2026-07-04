@@ -117,8 +117,10 @@ Custom algorithm to identify trending hashtags based on frequency and engagement
 ```
 
 The endpoint accepts common Xquik text fields such as `text`, `full_text`,
-`tweet_text`, `content`, and `body`. Metric fields may use snake_case or
-camelCase names.
+`tweet_text`, `tweetText`, `reply_text`, `replyText`, `content`, and `body`.
+Metric fields may use snake_case or camelCase names. Imports above 500 rows are
+rejected with `received_count` and `row_limit` values so dashboard totals are
+not mistaken for a partial export.
 
 ## 🔧 Configuration
 

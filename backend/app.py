@@ -58,7 +58,10 @@ def build_overview(data):
 
 
 def normalize_xquik_post(post, index):
-    text = get_first_value(post, ['text', 'full_text', 'tweet_text', 'content', 'body'])
+    text = get_first_value(
+        post,
+        ['text', 'full_text', 'tweet_text', 'tweetText', 'reply_text', 'replyText', 'content', 'body']
+    )
     if not isinstance(text, str) or not text.strip():
         return None
 
@@ -191,8 +194,16 @@ def import_xquik_posts():
     if not isinstance(posts, list) or not posts:
         return jsonify({'success': False, 'error': 'Request body must include a non-empty posts array'}), 400
 
+    if len(posts) > MAX_IMPORT_POSTS:
+        return jsonify({
+            'success': False,
+            'error': f'Xquik imports are limited to {MAX_IMPORT_POSTS} posts',
+            'received_count': len(posts),
+            'row_limit': MAX_IMPORT_POSTS
+        }), 400
+
     normalized_posts = []
-    for index, post in enumerate(posts[:MAX_IMPORT_POSTS]):
+    for index, post in enumerate(posts):
         if not isinstance(post, dict):
             continue
         normalized = normalize_xquik_post(post, index)
