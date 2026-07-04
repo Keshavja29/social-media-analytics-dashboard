@@ -160,6 +160,11 @@ body {
   border-left: 4px solid #667eea;
 }
 
+.error-card {
+  border-left-color: #ef4444;
+  color: #991b1b;
+}
+
 .result-card h3 {
   color: #1f2937;
   margin-bottom: 15px;

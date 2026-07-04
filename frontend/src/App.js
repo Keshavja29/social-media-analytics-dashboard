@@ -37,6 +37,9 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [analyzeText, setAnalyzeText] = useState('');
   const [analyzeResult, setAnalyzeResult] = useState(null);
+  const [xquikJson, setXquikJson] = useState('[{"tweet_id":"1889000000000000001","text":"Launch feedback is great today","author_username":"product_lead","likeCount":184,"retweetCount":42,"replyCount":17,"viewCount":9210}]');
+  const [xquikResult, setXquikResult] = useState(null);
+  const [xquikError, setXquikError] = useState('');
 
   useEffect(() => {
     fetchData();
@@ -72,6 +75,26 @@ function App() {
       setAnalyzeResult(response.data.data);
     } catch (error) {
       console.error('Error analyzing text:', error);
+    }
+  };
+
+  const handleXquikImport = async () => {
+    try {
+      setXquikError('');
+      const parsed = JSON.parse(xquikJson);
+      const posts = Array.isArray(parsed) ? parsed : parsed.posts;
+
+      if (!Array.isArray(posts) || posts.length === 0) {
+        setXquikError('Paste a JSON array or an object with a posts array.');
+        return;
+      }
+
+      const response = await axios.post(`${API_URL}/analytics/xquik-import`, {
+        posts
+      });
+      setXquikResult(response.data.data);
+    } catch (error) {
+      setXquikError(error.response?.data?.error || error.message);
     }
   };
 
@@ -202,6 +225,37 @@ function App() {
                 </div>
                 <p>Score: {analyzeResult.score}</p>
                 <p>Confidence: {analyzeResult.confidence}%</p>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Xquik Import Section */}
+        <div className="analyzer-section">
+          <h2>📥 Xquik Export Import</h2>
+          <div className="analyzer-card">
+            <textarea
+              value={xquikJson}
+              onChange={(e) => setXquikJson(e.target.value)}
+              placeholder="Paste Xquik export JSON..."
+              rows="6"
+            />
+            <button onClick={handleXquikImport} className="analyze-btn">
+              Import Xquik Export
+            </button>
+
+            {xquikError && (
+              <div className="result-card error-card">
+                {xquikError}
+              </div>
+            )}
+
+            {xquikResult && (
+              <div className="result-card">
+                <h3>Xquik Import Summary:</h3>
+                <p>Total Posts: {xquikResult.overview.total_posts}</p>
+                <p>Total Engagement: {xquikResult.overview.total_engagement.toLocaleString()}</p>
+                <p>Average Sentiment: {xquikResult.overview.avg_sentiment_score}</p>
               </div>
             )}
           </div>

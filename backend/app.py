@@ -7,8 +7,75 @@ from utils.sentiment_analyzer import SentimentAnalyzer
 app = Flask(__name__)
 CORS(app)
 
-# Initialize sentiment analyzer
 sentiment_analyzer = SentimentAnalyzer()
+MAX_IMPORT_POSTS = 500
+
+
+def get_first_value(source, keys, default=None):
+    for key in keys:
+        value = source.get(key)
+        if value not in (None, ''):
+            return value
+    return default
+
+
+def parse_count(value):
+    try:
+        return max(int(value), 0)
+    except (TypeError, ValueError):
+        return 0
+
+
+def build_overview(data):
+    total_posts = len(data)
+    total_engagement = sum(post['likes'] + post['shares'] + post['comments'] for post in data)
+    avg_sentiment = sum(post['score'] for post in data) / total_posts if total_posts else 0
+
+    sentiment_distribution = {
+        'positive': len([p for p in data if p['sentiment'] == 'positive']),
+        'negative': len([p for p in data if p['sentiment'] == 'negative']),
+        'neutral': len([p for p in data if p['sentiment'] == 'neutral'])
+    }
+
+    platform_stats = {}
+    for post in data:
+        platform = post['platform']
+        if platform not in platform_stats:
+            platform_stats[platform] = {
+                'posts': 0,
+                'engagement': 0
+            }
+        platform_stats[platform]['posts'] += 1
+        platform_stats[platform]['engagement'] += post['likes'] + post['shares'] + post['comments']
+
+    return {
+        'total_posts': total_posts,
+        'total_engagement': total_engagement,
+        'avg_sentiment_score': round(avg_sentiment, 2),
+        'sentiment_distribution': sentiment_distribution,
+        'platform_stats': platform_stats
+    }
+
+
+def normalize_xquik_post(post, index):
+    text = get_first_value(post, ['text', 'full_text', 'tweet_text', 'content', 'body'])
+    if not isinstance(text, str) or not text.strip():
+        return None
+
+    sentiment = sentiment_analyzer.analyze(text)
+
+    return {
+        'id': get_first_value(post, ['id', 'tweet_id', 'tweetId'], index + 1),
+        'platform': 'X/Twitter',
+        'content': text.strip(),
+        'sentiment': sentiment['sentiment'],
+        'score': sentiment['score'],
+        'likes': parse_count(get_first_value(post, ['likes', 'like_count', 'likeCount'])),
+        'shares': parse_count(get_first_value(post, ['shares', 'retweets', 'retweet_count', 'retweetCount'])),
+        'comments': parse_count(get_first_value(post, ['comments', 'replies', 'reply_count', 'replyCount'])),
+        'reach': parse_count(get_first_value(post, ['reach', 'views', 'view_count', 'viewCount'])),
+        'timestamp': get_first_value(post, ['timestamp', 'created_at', 'createdAt'], datetime.now().isoformat())
+    }
 
 # Sample data generator
 def generate_sample_data():
@@ -47,34 +114,10 @@ def generate_sample_data():
 def get_overview():
     """Get overall analytics overview"""
     data = generate_sample_data()
-    
-    total_posts = len(data)
-    total_engagement = sum(post['likes'] + post['shares'] + post['comments'] for post in data)
-    avg_sentiment = sum(post['score'] for post in data) / total_posts
-    
-    sentiment_distribution = {
-        'positive': len([p for p in data if p['sentiment'] == 'positive']),
-        'negative': len([p for p in data if p['sentiment'] == 'negative']),
-        'neutral': len([p for p in data if p['sentiment'] == 'neutral'])
-    }
-    
-    platform_stats = {}
-    for platform in ['Twitter', 'Instagram', 'LinkedIn', 'Facebook']:
-        platform_posts = [p for p in data if p['platform'] == platform]
-        platform_stats[platform] = {
-            'posts': len(platform_posts),
-            'engagement': sum(p['likes'] + p['shares'] + p['comments'] for p in platform_posts)
-        }
-    
+
     return jsonify({
         'success': True,
-        'data': {
-            'total_posts': total_posts,
-            'total_engagement': total_engagement,
-            'avg_sentiment_score': round(avg_sentiment, 2),
-            'sentiment_distribution': sentiment_distribution,
-            'platform_stats': platform_stats
-        }
+        'data': build_overview(data)
     })
 
 @app.route('/api/analytics/sentiment', methods=['GET'])
@@ -126,17 +169,46 @@ def get_trending_hashtags():
 @app.route('/api/analytics/analyze', methods=['POST'])
 def analyze_post():
     """Analyze a new post"""
-    data = request.get_json()
+    data = request.get_json(silent=True) or {}
     text = data.get('text', '')
     
-    if not text:
+    if not isinstance(text, str) or not text.strip():
         return jsonify({'success': False, 'error': 'No text provided'}), 400
     
-    result = sentiment_analyzer.analyze(text)
+    result = sentiment_analyzer.analyze(text.strip())
     
     return jsonify({
         'success': True,
         'data': result
+    })
+
+@app.route('/api/analytics/xquik-import', methods=['POST'])
+def import_xquik_posts():
+    """Normalize Xquik export rows into dashboard analytics."""
+    data = request.get_json(silent=True) or {}
+    posts = data.get('posts')
+
+    if not isinstance(posts, list) or not posts:
+        return jsonify({'success': False, 'error': 'Request body must include a non-empty posts array'}), 400
+
+    normalized_posts = []
+    for index, post in enumerate(posts[:MAX_IMPORT_POSTS]):
+        if not isinstance(post, dict):
+            continue
+        normalized = normalize_xquik_post(post, index)
+        if normalized:
+            normalized_posts.append(normalized)
+
+    if not normalized_posts:
+        return jsonify({'success': False, 'error': 'No readable Xquik post text found'}), 400
+
+    return jsonify({
+        'success': True,
+        'data': {
+            'posts': normalized_posts,
+            'overview': build_overview(normalized_posts),
+            'row_limit': MAX_IMPORT_POSTS
+        }
     })
 
 @app.route('/api/analytics/engagement', methods=['GET'])
