@@ -96,6 +96,31 @@ Custom algorithm to identify trending hashtags based on frequency and engagement
 - `GET /api/analytics/sentiment` - Get sentiment analysis data
 - `GET /api/analytics/trending` - Get trending hashtags
 - `POST /api/analytics/analyze` - Analyze new post
+- `POST /api/analytics/xquik-import` - Import Xquik export rows into the dashboard summary
+
+### Xquik Import Example
+
+```json
+{
+  "posts": [
+    {
+      "tweet_id": "1889000000000000001",
+      "text": "Launch feedback is great today",
+      "author_username": "product_lead",
+      "likeCount": 184,
+      "retweetCount": 42,
+      "replyCount": 17,
+      "viewCount": 9210
+    }
+  ]
+}
+```
+
+The endpoint accepts common Xquik text fields such as `text`, `full_text`,
+`tweet_text`, `tweetText`, `reply_text`, `replyText`, `content`, and `body`.
+Metric fields may use snake_case or camelCase names. Imports above 500 rows are
+rejected with `received_count` and `row_limit` values so dashboard totals are
+not mistaken for a partial export.
 
 ## 🔧 Configuration
 
